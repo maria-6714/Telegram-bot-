@@ -135,10 +135,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reply = get_reply(text)
         if not reply:
             logger.warning("No reply generated")
-            return# Send reply
-        await 
-context.bot.send_message(chat_id=c
-hat, text=reply)
+            return
+        
+        # Send reply
+        await context.bot.send_message(chat_id=chat, text=reply)
         logger.info(f"Replied: {reply[:80]}")
         
         # Save bot message
