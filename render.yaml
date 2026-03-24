@@ -1,15 +1,18 @@
 services:
-- type: web  # Changed from cron
-  name: telegram-bot
-  env: python
-  plan: free
-  startCommand: python bot.py
-  envVars:
-  - key: BOT_TOKEN
-    sync: false
-  - key: OPENROUTER_KEY
-    sync: false
-  - key: JANICE_ID
-    sync: false
-  - key: MY_ID
-    sync: false
+  - type: worker
+    name: telegram-bot
+    env: python
+    plan: free
+    
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    
+    envVars:
+      - key: BOT_TOKEN
+        scope: run
+      - key: OPENROUTER_KEY
+        scope: run
+      - key: JANICE_ID
+        scope: run
+      - key: MY_ID
+        scope: run
