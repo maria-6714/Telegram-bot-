@@ -1,0 +1,15 @@
+services:
+  - type: cron
+    name: telegram-bot
+    env: python
+    plan: free
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: OPENROUTER_KEY
+        sync: false
+      - key: JANICE_ID
+        sync: false
+      - key: MY_ID
+        sync: false
