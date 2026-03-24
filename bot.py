@@ -15,7 +15,7 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
-logger = logging.getLogger(name)
+logger = logging.getLogger(__name__)  # ✅ FIXED: Changed 'name' to '__name__'
 
 load_dotenv()
 
@@ -160,11 +160,11 @@ async def main() -> None:
     application = Application.builder().token(BOT_TOKEN).build()
     
     # Add handlers
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # ✅ FIXED: Proper indentation
+
     # Start bot
     await application.run_polling()
 
-if name == "main":
+if __name__ == "__main__":  # ✅ FIXED: Changed 'name == "main"' to '__name__ == "__main__"'
     import asyncio
     asyncio.run(main())
