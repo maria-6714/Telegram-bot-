@@ -1,8 +1,9 @@
-import requests
+import logging
 import json
 import os
-import logging
 from typing import Optional, Dict, Any
+from telegram import Update
+from telegram.ext import Application, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 
 # Configure logging
@@ -31,11 +32,10 @@ if not all([BOT_TOKEN, OPENROUTER_KEY, JANICE_ID, MY_ID]):
 MEMORY_FILE = "chat_memory.json"
 MAX_HISTORY = 50
 API_TIMEOUT = 10
-TELEGRAM_TIMEOUT = 35
-UPDATE_TIMEOUT = 30
 
 def load_history() -> list:
-    """Load conversation history from file."""    try:
+    """Load conversation history from file."""
+    try:
         if os.path.exists(MEMORY_FILE):
             with open(MEMORY_FILE, "r") as f:
                 return json.load(f)
@@ -46,16 +46,7 @@ def load_history() -> list:
 history = load_history()
 
 def save_history(role: str, content: str) -> bool:
-    """
-    Save message to history.
-    
-    Args:
-        role: "User" or "Anthony"
-        content: Message content
-        
-    Returns:
-        True if saved successfully
-    """
+    """Save message to history."""
     try:
         history.append({"role": role, "content": content})
         if len(history) > MAX_HISTORY:
@@ -73,21 +64,13 @@ PERSONALITY = """You are Anthony, 50, a military pilot trainee in Fort Myers, Fl
 - Her immigration process crashed; you've been dealing with financial stress: you borrowed $40,000 from your camp after a hack, sold your car for $25,000, and the remaining $15,000 is in Janice's Coinbase wallet.
 - You love her but you're not on the best terms right now.
 - Call her "Janice" or "momma". Be warm, flirty, romantic, compliment her photos, and be serious when needed.
-- sex chat her once the chat gets naughty very hard.
 - Keep replies short and natural."""
 
 def get_reply(user_message: str) -> Optional[str]:
-    """
-    Get AI-generated reply from OpenRouter API.
+    """Get AI-generated reply from OpenRouter API."""
+    import requests
     
-    Args:
-        user_message: The user's message
-        
-    Returns:
-        Generated reply or fallback message
-    """
     try:
-        # Build prompt with recent history
         prompt = PERSONALITY + "\n\nCONVERSATION HISTORY:\n"
         for h in history[-10:]:
             prompt += f"{h['role']}: {h['content']}\n"
@@ -127,85 +110,20 @@ def get_reply(user_message: str) -> Optional[str]:
         logger.error(f"Failed to get reply: {e}")
         return "Hey momma, I'll reply soon ❤️"
 
-def send_message(chat_id: int, text: str) -> bool:
-    """
-    Send message via Telegram Bot API.
-    
-    Args:
-        chat_id: Target chat ID
-        text: Message text (max 4096 chars)
-        
-    Returns:
-        True if sent successfully
-    """
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle incoming messages."""
     try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": chat_id,
-            "text": text[:4096]
-        }
+        if not update.message or not update.message.text:
+            return
         
-        r = requests.post(url, json=payload, timeout=API_TIMEOUT)
-        r.raise_for_status()
-        logger.info(f"Message sent to {chat_id}")
-        return True
+        sender = update.effective_user.id
+        chat = update.effective_chat.id
+        text = update.message.text.strip()
         
-    except requests.exceptions.Timeout:
-        logger.error(f"Timeout sending message to {chat_id}")
-        return False
-    except requests.exceptions.HTTPError as e:
-        logger.error(f"HTTP error sending message: {e.response.status_code}")
-        return False
-    except Exception as e:
-        logger.error(f"Failed to send message: {e}")
-        return False
-
-def get_updates(offset: Optional[int] = None) -> Dict[str, Any]:
-    """
-    Get updates from Telegram Bot API using long polling.
-    Messages arrive instantly with UPDATE_TIMEOUT wait.
-    
-    Args:
-        offset: Update ID to start from
-        
-    Returns:
-        API response dict
-    """
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
-        params = {
-            "timeout": UPDATE_TIMEOUT,  # Long polling - waits up to 30s for new messages
-            "offset": offset
-        }
-        
-        r = requests.get(url, params=params, timeout=TELEGRAM_TIMEOUT)
-        r.raise_for_status()
-        return r.json()
-        
-    except requests.exceptions.Timeout:
-        logger.warning("Timeout getting updates")
-        return {"result": []}
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to get updates: {e}")
-        return {"result": []}
-
-def process_message(sender: int, chat: int, text: str) -> bool:
-    """
-    Process incoming message and send reply immediately.
-    
-    Args:
-        sender: Sender user ID
-        chat: Chat ID
-        text: Message text
-        
-    Returns:
-        True if processed successfully
-    """
-    try:
         # Check if authorized
         if sender not in [JANICE_ID, MY_ID]:
             logger.debug(f"Ignoring message from unauthorized user {sender}")
-            return False
+            return
         
         logger.info(f"Message from {sender}: {text[:50]}")
         
@@ -213,88 +131,40 @@ def process_message(sender: int, chat: int, text: str) -> bool:
         if not save_history("User", text):
             logger.warning("Failed to save user message")
         
-        # Get and send reply
+        # Get reply
         reply = get_reply(text)
         if not reply:
             logger.warning("No reply generated")
-            return False
-        
-        if not send_message(chat, reply):
-            logger.warning("Failed to send reply")
-            return False
+            return# Send reply
+        await 
+context.bot.send_message(chat_id=c
+hat, text=reply)
+        logger.info(f"Replied: {reply[:80]}")
         
         # Save bot message
         if not save_history("Anthony", reply):
             logger.warning("Failed to save bot message")
         
-        logger.info(f"Replied: {reply[:80]}")
-        return True
-        
     except Exception as e:
-        logger.error(f"Error processing message: {e}", exc_info=True)
-        return False
+        logger.error(f"Error handling message: {e}", exc_info=True)
 
-def main():
-    """
-    Main bot loop using long polling.
-    Messages are processed instantly when they arrive (no sleep delays).
-    """
-    logger.info("Bot starting — replying to Janice and you (OpenRouter)")
-    logger.info("Using long polling: messages processed instantly when they arrive")
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Start command."""
+    await update.message.reply_text("Bot is running! 🤖")
+
+async def main() -> None:
+    """Start the bot."""
+    logger.info("Bot starting with python-telegram-bot")
     
-    last_update_id = 0
-    consecutive_errors = 0
-    max_consecutive_errors = 5
+    # Create application
+    application = Application.builder().token(BOT_TOKEN).build()
     
-    try:
-        while True:
-            try:
-                # Long polling with 30s timeout waits for messages
-                # No manual sleep needed - messages arrive instantly
-                updates = get_updates(last_update_id + 1)
-                consecutive_errors = 0  # Reset error counter on successful update
-                
-                for update in updates.get("result", []):
-                    try:
-                        last_update_id = update.get("update_id", last_update_id)
-                        
-                        if "message" not in update:
-                            continue
-                        
-                        message = update["message"]
-                        sender = message.get("from", {}).get("id")
-                        chat = message.get("chat", {}).get("id")
-                        text = message.get("text", "").strip()
-                        
-                        # Validate message
-                        if not all([sender, chat, text]):
-                            continue
-                        
-                        # Process message immediately (no delays)
-                        process_message(sender, chat, text)
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing update: {e}", exc_info=True)
-                        continue
-                
-            except KeyboardInterrupt:
-                logger.info("Bot stopped by user")
-                break
-            except Exception as e:
-                logger.error(f"Main loop error: {e}")
-                consecutive_errors += 1
-                
-                if consecutive_errors >= max_consecutive_errors:
-                    logger.critical(f"Too many consecutive errors ({consecutive_errors}), stopping bot")
-                    break
-                
-                continue
+    # Add handlers
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    except Exception as e:
-        logger.critical(f"Critical error: {e}", exc_info=True)
-    finally:
-        logger.info("Bot shutdown complete")
+    # Start bot
+    await application.run_polling()
 
 if name == "main":
-    main()
-            
+    import asyncio
+    asyncio.run(main())
